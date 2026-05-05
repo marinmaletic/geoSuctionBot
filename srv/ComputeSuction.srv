@@ -1,0 +1,8 @@
+string method
+float32 threshold
+float32 cup_diameter_mm
+---
+ur_suctionbot/GraspCandidate best_candidate
+ur_suctionbot/SuctionScore all_scores
+bool success
+string message

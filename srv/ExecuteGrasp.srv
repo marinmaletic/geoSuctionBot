@@ -1,0 +1,6 @@
+ur_suctionbot/GraspCandidate candidate
+bool dry_run
+---
+bool success
+string message
+float64 execution_time_sec
