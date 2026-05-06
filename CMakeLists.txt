@@ -19,6 +19,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/GraspCandidate.msg"
   "srv/ComputeSuction.srv"
   "srv/ExecuteGrasp.srv"
+  "srv/Segment.srv"
   DEPENDENCIES std_msgs geometry_msgs sensor_msgs
 )
 
@@ -34,6 +35,7 @@ install(PROGRAMS
   ur_suctionbot/camera_node.py
   ur_suctionbot/suction_node.py
   ur_suctionbot/gui_node.py
+  ur_suctionbot/segmentation_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

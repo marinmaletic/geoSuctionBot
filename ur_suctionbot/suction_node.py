@@ -28,7 +28,7 @@ from geometry_msgs.msg import Point, PoseStamped, Quaternion
 import numpy as np
 
 from ur_suctionbot.msg import SuctionScore, GraspCandidate
-from ur_suctionbot.srv import ComputeSuction
+from ur_suctionbot.srv import ComputeSuction, Segment
 from ur_suctionbot.knn import score_knn
 from ur_suctionbot.sobel import score_sobel
 from ur_suctionbot.ransac import score_ransac
@@ -57,10 +57,14 @@ class SuctionNode(Node):
         self._last_header = None
         self._last_color   = None
 
+        self._masked_points = None  # set when segmentation node publishes
+        self._masked_stamp  = None
+
         # Subscriptions
         self.sub_depth = self.create_subscription(Image, '/ur_suctionbot/camera/depth/image_raw', self._depth_cb, 10)
         self.sub_color = self.create_subscription(Image, '/ur_suctionbot/camera/color/image_raw', self._color_cb, 10)
         self.sub_info = self.create_subscription(CameraInfo, '/ur_suctionbot/camera/camera_info', self._info_cb, 1)
+        self.sub_masked = self.create_subscription(PointCloud2, '/ur_suctionbot/segmentation/points',self._masked_points_cb, 5)
 
         # Publishers
         self.pub_scores = self.create_publisher(SuctionScore, '/ur_suctionbot/suction/scores', 5)
@@ -97,6 +101,41 @@ class SuctionNode(Node):
     def _color_cb(self, msg: Image):
         #self._last_color = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         return
+    
+    def _masked_points_cb(self, msg: PointCloud2):
+        """Store latest masked point cloud from segmentation node."""
+        self._masked_points = msg
+        self._masked_stamp  = msg.header.stamp
+
+    
+    def from_masked_pointcloud(self, msg: PointCloud2):
+        """Parse masked PointCloud2 from segmentation node.
+        Fields: x(0) y(4) z(8) u(12) v(16) — point_step=20
+        """
+        from sensor_msgs.msg import PointCloud2
+        n = msg.width
+        data = msg.data
+        step = msg.point_step
+
+        xyz = np.zeros((n, 3), dtype=np.float32)
+        u   = np.zeros(n, dtype=np.int32)
+        v   = np.zeros(n, dtype=np.int32)
+
+        for i in range(n):
+            off = i * step
+            x, y, z, ui, vi = struct.unpack_from('fffii', data, off)
+            xyz[i] = [x, y, z]
+            u[i]   = ui
+            v[i]   = vi
+
+        # Get image dimensions from camera info
+        H = int(self.cy * 2) if self.cy else 480
+        W = int(self.cx * 2) if self.cx else 848
+
+        return xyz, u, v, H, W
+    
+    def clear_mask(self):
+        self._masked_points = None
 
     def backproject(self, depth: np.ndarray):
         """Convert depth image to 3D point cloud."""
@@ -132,7 +171,14 @@ class SuctionNode(Node):
         return 25  # fallback to default 25px window
 
     def compute_scores(self, method):
-        xyz, u, v, H, W = self.backproject(self._last_depth)
+        # Use masked points if available and recent (within 30 seconds)
+        if self._masked_points is not None:
+            self.get_logger().info('Using segmentation-masked points')
+            xyz, u, v, H, W = self.from_masked_pointcloud(self._masked_points)
+        else:
+            self.get_logger().info('Using full depth image')
+            xyz, u, v, H, W = self._backproject(self._last_depth)
+
         approach = np.array([0.0, 0.0, -1.0], dtype=np.float32)
         win = self._compute_win(xyz)
 

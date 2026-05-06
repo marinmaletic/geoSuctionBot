@@ -1,0 +1,6 @@
+string prompt
+---
+bool success
+string message
+sensor_msgs/Image mask         # binary mask, same dimensions as RGB image
+int32 num_objects              # how many objects detected

@@ -6,6 +6,8 @@ from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
 from launch_ros.actions import Node
 
+import os
+
 
 def generate_launch_description():
 
@@ -50,6 +52,17 @@ def generate_launch_description():
                 name='gui_node',
                 output='screen',
                 condition=IfCondition(LaunchConfiguration('gui')),
+            ),
+            Node(
+                package='ur_suctionbot',
+                executable='segmentation_node.py',
+                name='segmentation_node',
+                parameters=[{
+                    'sam2_checkpoint': os.path.expanduser('~/sam2/checkpoints/sam2.1_hiera_tiny.pt'),
+                    'gemini_model':    'gemini-robotics-er-1.6-preview',
+                    'depth_scale':     0.001,
+                }],
+                output='screen',
             ),
         ]
     )

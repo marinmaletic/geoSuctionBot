@@ -12,16 +12,16 @@ import threading
 import rclpy
 from rclpy.node import Node
 from std_srvs.srv import Trigger
-from ur_suctionbot.srv import ComputeSuction
+from ur_suctionbot.srv import ComputeSuction, Segment
 
 
 class GuiNode(Node):
     def __init__(self):
         super().__init__('gui_node')
-        self._compute_client = self.create_client(
-            ComputeSuction, '/ur_suctionbot/suction/compute')
-        self._save_client = self.create_client(
-            Trigger, '/ur_suctionbot/camera/save_frame')
+
+        self._compute_client = self.create_client(ComputeSuction, '/ur_suctionbot/suction/compute')
+        self._save_client = self.create_client(Trigger, '/ur_suctionbot/camera/save_frame')
+        self._segment_client = self.create_client(Segment, '/ur_suctionbot/segmentation/segment')
 
     def check_nodes(self):
         names = [n for n, _ in self.get_node_names_and_namespaces()]
@@ -92,6 +92,12 @@ class SuctionGUI:
             bg='#1a4a6e', fg='white', font=('sans', 10, 'bold'),
             command=self._on_save)
         self._btn_save.pack(side='left', expand=True, fill='x', padx=4)
+
+        self._btn_segment = tk.Button(
+            btn_frame, text='Segment Objects',
+            bg='#6e1a4a', fg='white', font=('sans', 10, 'bold'),
+            command=self._on_segment)
+        self._btn_segment.pack(side='left', expand=True, fill='x', padx=4)
 
         # ── Result ───────────────────────────────────────────────
         result_frame = ttk.LabelFrame(self._root, text='Result')
@@ -193,6 +199,36 @@ class SuctionGUI:
             self._set_status(f'Save failed: {e}')
         finally:
             self._btn_save.config(state='normal')
+
+    def _on_segment(self):
+        if not self._node._segment_client.service_is_ready():
+            self._set_status('Segmentation service not available')
+            return
+
+        self._btn_segment.config(state='disabled')
+        self._set_status('Segmenting...')
+
+        threading.Thread(target=self._call_segment, daemon=True).start()
+
+    def _call_segment(self):
+        from ur_suctionbot.srv import Segment
+        req = Segment.Request()
+        req.prompt = ''  # use default prompt from node parameter
+        future = self._node._segment_client.call_async(req)
+        rclpy.spin_until_future_complete(self._node, future, timeout_sec=30.0)
+        self._root.after(0, self._on_segment_done, future)
+
+    def _on_segment_done(self, future):
+        try:
+            response = future.result()
+            if response.success:
+                self._set_status(f'Segmented: {response.message}')
+            else:
+                self._set_status(f'Segment error: {response.message}')
+        except Exception as e:
+            self._set_status(f'Segment failed: {e}')
+        finally:
+            self._btn_segment.config(state='normal')
 
     def run(self):
         self._root.mainloop()
