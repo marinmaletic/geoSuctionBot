@@ -33,6 +33,7 @@ install(DIRECTORY launch config
 install(PROGRAMS
   ur_suctionbot/camera_node.py
   ur_suctionbot/suction_node.py
+  ur_suctionbot/gui_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

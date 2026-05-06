@@ -1,12 +1,22 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
-    # Include camera launch
+
+    rviz_arg = DeclareLaunchArgument(
+        'rviz', default_value='false',
+        description='Launch RViz2')
+
+    gui_arg = DeclareLaunchArgument(
+        'gui', default_value='false',
+        description='Launch tkinter GUI')
+
     camera_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -15,9 +25,8 @@ def generate_launch_description():
         ])
     )
 
-    # Suction node — delayed to wait for camera
     suction_node = TimerAction(
-        period=4.0,
+        period=3.0,
         actions=[
             Node(
                 package='ur_suctionbot',
@@ -34,11 +43,20 @@ def generate_launch_description():
                     'depth_scale':      0.001,
                 }],
                 output='screen',
-            )
+            ),
+            Node(
+                package='ur_suctionbot',
+                executable='gui_node.py',
+                name='gui_node',
+                output='screen',
+                condition=IfCondition(LaunchConfiguration('gui')),
+            ),
         ]
     )
 
     return LaunchDescription([
+        rviz_arg,
+        gui_arg,
         camera_launch,
         suction_node,
     ])

@@ -1,12 +1,18 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
+
+    rviz_arg = DeclareLaunchArgument(
+        'rviz', default_value='false',
+        description='Launch RViz2')
+
     realsense_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -38,7 +44,17 @@ def generate_launch_description():
         }]
     )
 
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('rviz')),
+    )
+
     return LaunchDescription([
+        rviz_arg,
         realsense_launch,
-        camera_node
+        camera_node,
+        rviz_node,
     ])
